@@ -1045,6 +1045,7 @@ hbbtv.objects.AVControl = (function() {
         priv.seekPos = undefined;
         priv.targetSpeed = priv.speed = 0;
         priv.videoElement.orb_unload();
+        priv.unrealized = true;
     }
 
     function updateMutationObservers() {
@@ -1078,7 +1079,6 @@ hbbtv.objects.AVControl = (function() {
     }
 
     function initialise() {
-        let initialising = true;
         let startPlaying = false;
         let seeking = false;
         let priv = privates.get(this);
@@ -1087,6 +1087,7 @@ hbbtv.objects.AVControl = (function() {
         }
         privates.set(this, {});
         priv = privates.get(this);
+        priv.unrealized = true;
         priv.styleObservers = [];
         priv.playState = PLAY_STATE_STOPPED;
         priv.xhr = new XMLHttpRequest();
@@ -1208,19 +1209,19 @@ hbbtv.objects.AVControl = (function() {
             if (!seeking) {
                 videoElement.oncanplaythrough = () => {
                     videoElement.oncanplaythrough = undefined;
-                    initialising = false;
+                    priv.unrealized = false;
                     startPlaying = true;
                 };
             }
         });
 
         videoElement.addEventListener('play', () => {
-            initialising = false;
+            priv.unrealized = false;
             startPlaying = true;
         });
 
         videoElement.addEventListener('seeking', () => {
-            if (!initialising && !startPlaying && !seeking) {
+            if (!priv.unrealized && !startPlaying && !seeking) {
                 seeking = true;
             }
         });
