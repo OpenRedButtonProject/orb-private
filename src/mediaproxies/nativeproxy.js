@@ -111,6 +111,32 @@ hbbtv.objects.NativeProxy = (function() {
                             }
                             textTrackInfo.defaultTrack = trackElement.default;
                             textTrackInfo.captionData = ttmlParser.parse(xhr.responseText, 0);
+
+                            const nsResolver = (prefix) => {
+                                const ns = {
+                                    'tt': 'http://www.w3.org/ns/ttml',
+                                    'ebuttm': 'urn:ebu:tt:metadata'
+                                };
+                                return ns[prefix] || null;
+                            };
+                            const fontElements = xhr.responseXML.evaluate(
+                                '//tt:head/tt:styling/tt:metadata/ebuttm:font', xhr.responseXML,
+                                nsResolver, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+
+                            for (let i = 0; i < fontElements.snapshotLength; i++) {
+                                const fontElement = fontElements.snapshotItem(i);
+                                const fontFamilyName = fontElement.getAttribute('fontFamilyName');
+                                const fontSrc = fontElement.getAttribute('src');
+
+                                if (fontFamilyName && fontSrc) {
+                                    var style = document.createElement('style');
+                                    style.type = 'text/css';
+                                    var fontFace = `@font-face { font-family: '${fontFamilyName}'; src: url('${fontSrc}') format('opentype'); font-weight: normal; font-style: normal;}`;
+                                    style.appendChild(document.createTextNode(fontFace));
+                                    document.head.appendChild(style);
+                                }
+                            }
+
                             textTracks.addTextTrack(textTrackInfo);
                             resolve();
                         };
@@ -249,7 +275,7 @@ hbbtv.objects.NativeProxy = (function() {
             Object.assign(evt, {
                 error: data,
             });
-            console.warn("NariveProxy: An error occurred on src '" + this.src + "':", this.error);
+            console.warn("NativeProxy: An error occurred on src '" + this.src + "':", this.error);
             this.dispatchEvent(evt);
         }
     }

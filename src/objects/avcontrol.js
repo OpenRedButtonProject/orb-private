@@ -226,7 +226,7 @@ hbbtv.objects.AVControl = (function() {
             }
             if (isStateTransitionValid.call(this, priv.playState, PLAY_STATE_CONNECTING)) {
                 transitionToState.call(this, PLAY_STATE_CONNECTING);
-                priv.xhr.open('HEAD', this.data);
+                priv.xhr.open(priv.isCasd ? 'GET' : 'HEAD', this.data);
                 priv.xhr.send();
             }
         } else if (playStates[priv.playState] & 24 && speed === 0) {
@@ -236,7 +236,7 @@ hbbtv.objects.AVControl = (function() {
         } else if ((priv.playState === PLAY_STATE_PAUSED || (priv.playState === PLAY_STATE_STOPPED)) && !priv.connected) {
             if (speed !== 0) {
                 transitionToState.call(this, PLAY_STATE_CONNECTING);
-                priv.xhr.open('HEAD', this.data);
+                priv.xhr.open(priv.isCasd ? 'GET' : 'HEAD', this.data);
                 priv.xhr.send();
             } else {
                 transitionToState.call(this, PLAY_STATE_PAUSED);
@@ -1077,6 +1077,46 @@ hbbtv.objects.AVControl = (function() {
         }
     }
 
+    function _parseCasd(priv) {
+        const xmlDoc = priv.xhr.responseXML;
+        const nsResolver = function (prefix) {
+            var ns = {
+                'urn': 'urn:oipf:iptv:ContentAccessStreamingDescriptor:2008-1',
+                'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+                'hbbtv': 'urn:hbbtv:CAD:2014'
+            };
+            return ns[prefix] || null;
+        };
+
+        var contentItem = xmlDoc.evaluate('//urn:ContentItem', xmlDoc, nsResolver, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+        if (contentItem) {
+            /*var title = xmlDoc.evaluate('.//urn:Title', contentItem, nsResolver, XPathResult.STRING_TYPE, null).stringValue;
+            var originSite = xmlDoc.evaluate('.//urn:OriginSite', contentItem, nsResolver, XPathResult.STRING_TYPE, null).stringValue;
+            var originSiteName = xmlDoc.evaluate('.//urn:OriginSiteName', contentItem, nsResolver, XPathResult.STRING_TYPE, null).stringValue;*/
+            var contentURL = xmlDoc.evaluate('.//urn:ContentURL', contentItem, nsResolver, XPathResult.STRING_TYPE, null).stringValue;
+            /*var transferType = xmlDoc.evaluate('.//urn:ContentURL/@TransferType', contentItem, nsResolver, XPathResult.STRING_TYPE, null).stringValue;
+            var size = xmlDoc.evaluate('.//urn:ContentURL/@Size', contentItem, nsResolver, XPathResult.STRING_TYPE, null).stringValue;*/
+            var mimeType = xmlDoc.evaluate('.//urn:ContentURL/@MIMEType', contentItem, nsResolver, XPathResult.STRING_TYPE, null).stringValue;
+            /*var font = xmlDoc.evaluate('.//hbbtv:DownloadableFont', contentItem, nsResolver, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+            var fontFamily = font ? font.getAttribute('font-family') : '';
+            var fontMimeType = font ? font.getAttribute('mime-type') : '';
+            var fontEssential = font ? font.getAttribute('essential') : '';
+            var fontURL = font ? font.textContent.trim() : '';*/
+
+            this.type = mimeType;
+            /*if (fontFamily && fontMimeType && fontURL && fontEssential) {
+                /*var style = document.createElement('style');
+                style.type = 'text/css';
+                var fontFace = `@font-face { font-family: '${fontFamily}'; src: url('${fontURL}') format('opentype'); font-weight: normal; font-style: normal;}`;
+                style.appendChild(document.createTextNode(fontFace));
+                priv.videoElement.appendChild(style);
+                priv.videoElement.orb_loadFont(fontFamily, fontMimeType, fontEssential, fontURL);
+            }*/
+
+            priv.videoElement.src = contentURL.trim();
+        }
+    }
+
     function initialise() {
         let initialising = true;
         let startPlaying = false;
@@ -1116,6 +1156,7 @@ hbbtv.objects.AVControl = (function() {
 
         // Create a new video element that will be used as a playback backend 'video/mp4' objects.
         const mimetype = this.type || '';
+        priv.isCasd = (mimetype.toLowerCase() === 'application/vnd.oipf.contentaccessstreaming+xml');
         let videoElement = document.createElement(mimetype.startsWith('audio') ? 'audio' : 'video');
 
         videoElement.autoplay = false;
@@ -1176,7 +1217,11 @@ hbbtv.objects.AVControl = (function() {
                 return;
             }
             //transitionToState.call(thiz, PLAY_STATE_BUFFERING);
-            videoElement.src = thiz.data;
+            if (priv.isCasd) {
+                _parseCasd.call(thiz, priv);
+            } else {
+                videoElement.src = thiz.data;
+            }
         };
 
         videoElement.addEventListener('loadeddata', () => {
@@ -1367,7 +1412,14 @@ hbbtv.objects.AVControl = (function() {
 
 hbbtv.objectManager.registerObject({
     name: 'video/mpeg',
-    mimeTypes: ['video/mp4', 'application/dash+xml', 'audio/mp4', 'audio/mpeg', 'video/mpeg'],
+    mimeTypes: [
+        'video/mp4',
+        'application/dash+xml',
+        'audio/mp4',
+        'audio/mpeg',
+        'video/mpeg',
+        'application/vnd.oipf.contentaccessstreaming+xml'
+    ],
     oipfObjectFactoryMethodName: 'createVideoMpegObject',
     upgradeObject: function(object) {
         Object.setPrototypeOf(object, hbbtv.objects.AVControl.prototype);
