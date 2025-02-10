@@ -119,21 +119,6 @@ abstract class WebResourceClient {
         String url = request.getUrl().toString();
         Map<String, String> requestHeaders = request.getRequestHeaders();
 
-        if (!request.isForMainFrame()) {
-            String[] mimetypes = requestHeaders.getOrDefault("Accept", "").split(",");
-            boolean found = false;
-            for (String m : mimetypes) {
-                if (HBBTV_MIME_TYPES.contains(m.toLowerCase())) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                return null;
-            }
-        }
-        requestHeaders.put("Accept", mAcceptValue);
-
         CookieManager cookieManager;
         if (HTTP_COOKIES_ENABLED) {
             cookieManager = CookieManager.getInstance();
